@@ -7,6 +7,7 @@
 # ...then explicitly allow what we want to track.
 !/Dofile/
 !/Code R/
+!/graphs/
 !/README.md
 !/.gitignore
 !/LICENSE
