@@ -1,0 +1,42 @@
+# Repository tracks only Stata code (.do), R code (.Rmd) and the README.
+# Everything else is ignored.
+
+# Ignore everything by default...
+/*
+
+# ...then explicitly allow what we want to track.
+!/Dofile/
+!/Code R/
+!/README.md
+!/.gitignore
+!/LICENSE
+
+# Inside Dofile/, keep only .do
+Dofile/**
+!Dofile/**/
+!Dofile/**/*.do
+
+# Inside Code R/, keep only .Rmd and .R
+Code R/**
+!Code R/**/
+!Code R/**/*.Rmd
+!Code R/**/*.R
+
+# Stata cruft and auto-backups
+*.log
+*.smcl
+*.stswp
+*.gph
+*.eps
+*.dta
+temp_*.dta
+
+# Office temporary files
+~$*
+
+# OS / IDE files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

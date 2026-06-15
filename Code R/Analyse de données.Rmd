@@ -1,0 +1,1152 @@
+---
+title: "Analyse de données FDI"
+author: "DIBLONI KOKO CLOVIS"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+
+```{r setup-options, include=F}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+options(repos = c(CRAN = "https://cran.univ-paris1.fr/"))
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "C:/Users/HP/Desktop/Memoire/Data/Traitees")
+```
+
+INSTALLATION DE PACKAGES
+
+```{r}
+install.packages("rmarkdown")
+install.packages("dplyr")
+install.packages("tidyverse")
+install.packages("readxl")
+install.packages("foreign")
+install.packages("haven")
+install.packages("ggplot2")
+install.packages("readr")     
+
+
+```
+
+LIBRAIRIES
+```{r}
+library(rmarkdown)
+library(dplyr)
+library(tidyverse)
+library(readxl)
+library(foreign)
+library(haven)
+library(ggplot2)
+library(readr)
+```
+
+Importation de la base de données FDI de la Banque Mondiale contenant des informations sur les paradis fiscaux et les secteurs.
+
+
+```{r}
+if (!require("haven")) {
+  install.packages("haven")
+}
+library(haven)
+data <-read_dta("Final_DATA.dta")
+```
+
+
+```{r}
+library(scales)
+
+inflow_per_country <-data %>%
+  select(name_r, in_Flow_per_r,income_r, year, Fisc_r) %>%
+  group_by(year) %>%
+  summarise(tot_inflow=sum(in_Flow_per_r, na.rm=T),
+            tot_Fisc_r=sum(Fisc_r, na.rm = T)) %>%
+  arrange(tot_inflow)
+
+#create a barplot
+
+ggplot(inflow_per_country, aes(x = factor(year), y = tot_inflow)) +
+  geom_bar(stat = "identity", fill = "gold4") +
+  labs(
+    x     = "Année",
+    y     = "Total IDE (M$)",
+    title = "Total IDE par année"
+  ) +
+  scale_y_continuous(labels = number_format(accuracy = 0.5, suffix = "M$")) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 0.5, size = 8),
+    plot.title  = element_text(face = "bold", hjust = 0.5)
+  )
+
+#Barplot pour consolidation
+ggplot(inflow_per_country, aes(x = factor(year), y = tot_Fisc_r)) +
+  geom_bar(stat = "identity", fill = "gold4") +
+  labs(
+    x     = "Année",
+    y     = "Consolidation budgétaire (%PIB)",
+    title = "Consolidation budgétaire par ans"
+  ) +
+  scale_y_continuous(labels = number_format(accuracy = 0.5, suffix = "%PIB")) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 0.5, size = 8),
+    plot.title  = element_text(face = "bold", hjust = 0.5)
+  )
+
+```
+
+Courbe de tendance moyenne des consolidations
+
+```{r}
+cb_mean_year <- data %>%
+  filter(!is.na(Fisc_r)& Fisc_r > 0) %>%
+  group_by(year) %>%
+  summarise(mean_cb = mean(Fisc_r, na.rm = TRUE))
+
+ggplot(cb_mean_year, aes(x = year, y = mean_cb)) +
+  geom_line(size = 1.2) +
+  geom_point() +
+  geom_smooth(method = "loess", se = FALSE, linetype = "dashed") +
+  labs(
+    title = "Évolution moyenne de l'intensité des consolidations budgétaires",
+    x = "Année",
+    y = "CB moyenne (% du PIB)"
+  ) +
+  theme_minimal()+ 
+  geom_vline(xintercept = 2008, linetype = "dotted", color = "red") +
+  annotate("text", x = 2008, y = max(cb_mean_year$mean_cb), label = "Crise 2008", vjust = -1, color = "red")
+
+```
+
+
+
+
+```{r}
+inflow_per_country <-data %>%
+  select(name_r, in_Flow_per_r,income_r) %>%
+  group_by(name_r) %>%
+  summarise(tot_inflow=sum(in_Flow_per_r, na.rm=T)) %>%
+  arrange(tot_inflow)
+
+#create a barplot
+
+ggplot(inflow_per_country %>% 
+         mutate(name_r = fct_reorder(name_r, tot_inflow)),
+       aes(x = name_r, y = tot_inflow)) +
+  geom_bar(stat = "identity", fill = "gold4") + #265DAB
+  labs(
+    x     = "Pays",
+    y     = "Total IDE",
+    title = "Total IDE par pays (du plus petit au plus grand)"
+  ) +
+  scale_y_continuous(labels = number_format(accuracy = 0.5, suffix = "%")) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 0.5, size = 6),
+    plot.title  = element_text(face = "bold", hjust = 0.5)
+  )
+```
+
+
+
+
+```{r}
+library(tidyverse)
+
+law_income <-data %>%
+  select(name_r, in_Flow_per_r,income_r) %>%
+  group_by(income_r) %>%
+  summarise(tot_inflow=sum(in_Flow_per_r, na.rm=T))
+
+
+#créer un barplot
+
+
+ggplot(law_income, aes(x = income_r, y = tot_inflow, fill = income_r)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("LIC" = "chartreuse4", "LMC" = "cyan3", "UMC" = "darkorange3")) +
+  labs(x = "Niveau de revenus", y = "IDE Total", title = "IDE Total par niveau de revenus (LIC, LMC, UMC)") +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.5)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+
+```
+
+
+```{r}
+income_level <-data %>%
+  select(year, name_r, in_Flow_per_r,income_r) %>%
+  group_by(year, income_r)  %>%
+ summarise(tot_inflow=sum(in_Flow_per_r, na.rm=T)) 
+
+#Evolution par années
+ggplot(income_level, aes(x = year, y = tot_inflow, color=income_r), na.rm=T) +
+  geom_line(size = 1) +  # Tracer des lignes pour chaque pays
+  geom_point(size = 2) +  # Ajouter des points pour chaque année
+  labs(x = "Années", y = "Flux entrants", title = "Évolution des flux entrants par (LIC, LMIC, UMC)") +
+  scale_y_continuous(labels = scales::number_format(accuracy = 1)) +  # Affiche les nombres en entier
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_color_brewer(palette = "Set1")
+
+```
+
+
+
+```{r}
+#install.packages("naniar")
+library(naniar)
+library(scales)
+library(tidyverse)
+
+# 1. Définir le vecteur des variables d'intérêt
+vars <- c(
+  "trade_gdp_r","Larg_fisc_r",   "Fisc_r", "Taxh_r",
+  "Spend_r","Spendcurrent_r","Spendcapital_r","rule_law_r",
+  "reg_quality_r", "ctrl_corr_r",  "gross_debt_r",
+  "tax_rev_gdp_r", "tax_trade_r",  "voice_acc_r",
+  "stab_viol_r",   "log_GDP_r",    "log_POP_r",
+  "InstDist", "sec_enroll_gross_r", "sec_enroll_net_r",
+  "res_rents_r", "remit_gdp_r", "inflation_r",
+  "access_elec_r", "access_elec_rural_r", "gdp_growth_r", 
+  "fin_dev_r","elec_consump_r", "tax_income_prop_r", 
+  "GDP_current_r", "real_ex_rate_r", "nominal_ex_rate_r",
+  "RTA", "log_distcap", "CIT_r", "BIT", "MR" 
+)
+
+# 2. Labels (votre définition est correcte)
+var_labels <- c(
+  trade_gdp_r = "Ouverture commerciale (% PIB)",
+  Larg_fisc_r = "Conso budgétaire>1,5%",
+  Fisc_r = "Conso budgétaire",
+  Taxh_r = "Augmentation de la taxe",
+  Spend_r = "Réduction de dépenses",
+  Spendcurrent_r = "Dépenses courantes",
+  Spendcapital_r = "Dépenses en capital",
+  rule_law_r = "État de droit",
+  reg_quality_r = "Qualité réglementaire",
+  ctrl_corr_r = "Contrôle corruption",
+  gross_debt_r = "Dette publique brute (% PIB)",
+  tax_rev_gdp_r = "Recettes fiscales (% PIB)",
+  tax_trade_r = "Taxes sur le commerce",
+  voice_acc_r = "Voix et responsabilité",
+  stab_viol_r = "Stabilité politique",
+  log_GDP_r = "Log PIB",
+  log_POP_r = "Log population",
+  InstDist = "Distance institutionnelle",
+  sec_enroll_gross_r = "Scolarisation secondaire (brut)",
+  sec_enroll_net_r = "Scolarisation secondaire (net)",
+  res_rents_r = "Rentes de ressources (% PIB)",
+  remit_gdp_r = "Envois de fonds (% PIB)",
+  inflation_r = "Inflation (%)",
+  access_elec_r = "Accès à l'électricité (total)",
+  access_elec_rural_r = "Accès à l'électricité (rural)",
+  gdp_growth_r = "Croissance du PIB (%)",
+  fin_dev_r = "Développement financier",
+  elec_consump_r = "Consommation électricité",
+  tax_income_prop_r = "Impôts sur le revenu (%)",
+  GDP_current_r = "PIB courant",
+  real_ex_rate_r = "Taux de change réel",
+  nominal_ex_rate_r = "Taux de change nominal",
+  RTA = "Accord commercial régional",
+  log_distcap = "Log distance capitale",
+  CIT_r = "Taux d'impôt sur les sociétés",
+  BIT = "Traité bilatéral d'investissement",
+  MR = "Résistance multilatérale"
+)
+
+# 3. Sélectionner uniquement ces variables + l'identifiant pays
+data_sel <- data %>%
+  select(name_r, all_of(vars))
+
+# 4. CORRECTION : Méthode simple et efficace
+library(naniar)
+
+# Identifier les variables qui existent vraiment
+vars_existantes <- intersect(vars, names(data_sel))
+
+# Renommer avec les labels (méthode simple)
+data_for_plot <- data_sel %>% 
+  select(all_of(vars_existantes))
+
+# Appliquer les nouveaux noms
+names(data_for_plot) <- var_labels[vars_existantes]
+names(data_sel) <- var_labels[vars_existantes]
+
+# 5. Graphiques avec les beaux noms
+gg_miss_var(data_for_plot, show_pct = TRUE) +
+  labs(title = "% de valeurs manquantes par variable") +
+  theme(axis.text.y = element_text(size = 8))
+
+gg_miss_fct(data_sel, fct = name_r) +
+  labs(title = "Répartition des données manquantes par pays") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 5))
+```
+
+ANALYSE EN RÉSEAU
+
+```{r}
+install.packages(c("tidygraph", "ggraph", "tidyverse", "igraph"))
+library(tidygraph)
+library(ggraph)
+library(tidyverse)
+
+
+```
+
+
+```{r}
+library(dplyr)
+library(igraph)
+library(tidygraph)
+library(ggraph)
+
+# Charger les données
+reseau <- read.csv("reseau_data.csv")
+
+
+# Filtrer les flux positifs entre PED
+reseau_filtre <- reseau %>%
+  filter(in_Flow_per_r > 0) %>%
+  select(iso_r, iso_p, in_Flow_per_r)
+
+# CORRECTION: Créer le graphe complet d'abord
+g <- graph_from_data_frame(reseau_filtre, directed = TRUE) %>%
+  as_tbl_graph() %>%
+  activate(nodes) %>%
+  mutate(volume_recu = centrality_degree(mode = "in", weights = E(.)$in_Flow_per_r))
+
+# Extraire le top 30
+#top30 <- g %>%
+ # activate(nodes) %>%
+  #as_tibble() %>%
+  #arrange(desc(volume_recu)) %>%
+  #slice(1:30) %>%
+  #pull(name)
+
+# Calculer l'activité totale (émis + reçu)
+top30 <- g %>%
+  activate(nodes) %>%
+  mutate(
+    volume_recu = centrality_degree(mode = "in", weights = E(.)$in_Flow_per_r),
+    volume_emis = centrality_degree(mode = "out", weights = E(.)$in_Flow_per_r),
+    activite_totale = volume_recu + volume_emis
+  ) %>%
+  as_tibble() %>%
+  arrange(desc(activite_totale)) %>%  # ← Classement par activité totale
+  slice(1:30) %>%
+  pull(name)
+
+# Créer le sous-réseau du top 30
+reseau_top30 <- reseau_filtre %>%
+  filter(iso_r %in% top30, iso_p %in% top30)
+
+# Créer le graphe du top 30
+g_top <- graph_from_data_frame(reseau_top30, directed = TRUE) %>%
+  as_tbl_graph() %>%
+  activate(nodes) %>%
+  mutate(
+    volume_recu = centrality_degree(mode = "out", weights = E(.)$in_Flow_per_r),
+    volume_envoye = centrality_degree(mode = "in", weights = E(.)$in_Flow_per_r),
+    # Créer les catégories de couleurs basées sur le volume reçu
+    categorie = case_when(
+      volume_recu >= quantile(volume_recu, 0.8, na.rm = TRUE) ~ "Top 20% récepteurs",
+      volume_recu >= quantile(volume_recu, 0.6, na.rm = TRUE) ~ "Gros récepteurs", 
+      volume_recu >= quantile(volume_recu, 0.4, na.rm = TRUE) ~ "Récepteurs moyens",
+      TRUE ~ "Petits récepteurs"
+    )
+  )
+
+# Visualisation avec couleurs différenciées par quintiles
+ggraph(g_top, layout = "kk") +
+  geom_edge_link(
+    aes(width = in_Flow_per_r),
+    color = "gray60", alpha = 0.6,
+    arrow = arrow(length = unit(3, 'mm')),
+    end_cap = circle(2, 'mm')
+  ) +
+  geom_node_point(
+    aes(size = volume_recu, color = categorie),
+    alpha = 0.85
+  ) +
+  geom_node_text(
+    aes(label = name), 
+    size = 3, 
+    vjust = -0.7,
+    fontface = "bold"
+  ) +
+  scale_edge_width_continuous(name = "Flux d'IDE", range = c(0.2, 2.5)) +
+  scale_size_continuous(name = "IDE reçus", range = c(3, 15)) +
+  scale_color_manual(
+    name = "Catégorie",
+    values = c(
+      "Top 20% récepteurs" = "#8B0000",    # Rouge foncé
+      "Gros récepteurs" = "#FF6347",       # Tomate
+      "Récepteurs moyens" = "#4682B4",     # Bleu acier  
+      "Petits récepteurs" = "#32CD32"      # Vert lime
+    )
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    legend.box = "horizontal"
+  ) +
+  labs(
+   # title = "Réseau IDE entre les 30 PED les plus centraux (2006–2018)",
+    subtitle = "Couleurs selon le volume d'IDE reçu",
+    caption = "Taille des nœuds ∝ volume IDE reçus | Largeur des arêtes ∝ flux d'IDE"
+  )
+
+# VERSION ALTERNATIVE: Couleurs basées sur le ratio envoyé/reçu
+g_top_alt <- g_top %>%
+  activate(nodes) %>%
+  mutate(
+    ratio_envoi_reception = ifelse(volume_recu > 0, volume_envoye / volume_recu, 0),
+    type_pays = case_when(
+      ratio_envoi_reception > 1.5 ~ "Émetteur net",
+      ratio_envoi_reception > 0.8 ~ "Équilibré", 
+      ratio_envoi_reception > 0.3 ~ "Récepteur modéré",
+      TRUE ~ "Récepteur net"
+    )
+  )
+
+# Graphique alternatif
+ggraph(g_top_alt, layout = "kk") +
+  geom_edge_link(
+    aes(width = in_Flow_per_r),
+    color = "gray60", alpha = 0.5,
+    arrow = arrow(length = unit(2, 'mm'))
+  ) +
+  geom_node_point(
+    aes(size = volume_recu, color = type_pays),
+    alpha = 0.9
+  ) +
+  geom_node_text(
+    aes(label = name), 
+    size = 2.8, 
+    vjust = -0.8
+  ) +
+  scale_color_manual(
+    name = "Type de pays",
+    values = c(
+      "Émetteur net" = "#FF4500",     
+      "Équilibré" = "#9370DB",         
+      "Récepteur modéré" = "#20B2AA", 
+      "Récepteur net" = "#228B22"      
+    )
+  ) +
+  scale_size_continuous(range = c(3, 12), guide = "none") +
+  scale_edge_width_continuous(range = c(0.1, 2), guide = "none") +
+  theme_void() +
+  labs(
+    #title = "Réseau IDE - Classification par profil émetteur/récepteur",
+    caption = "Couleurs selon le ratio IDE envoyés/IDE reçus"
+  )
+
+# Statistiques du réseau
+cat("=== STATISTIQUES DU RÉSEAU ===\n")
+cat("Nombre de nœuds:", vcount(g_top), "\n")
+cat("Nombre d'arêtes:", ecount(g_top), "\n")
+cat("Densité:", round(edge_density(g_top), 3), "\n")
+
+# Top 10 récepteurs
+top_receivers <- g_top %>%
+  activate(nodes) %>%
+  as_tibble() %>%
+  arrange(desc(volume_recu)) %>%
+  head(10)
+
+print("=== TOP 10 RÉCEPTEURS D'IDE ===")
+print(top_receivers[c("name", "volume_recu", "volume_envoye")])
+```
+
+
+
+
+
+
+```{r}
+
+library(dplyr)
+library(igraph)
+
+
+# Charger les données
+reseau <- read.csv("reseau_data.csv")
+
+# Définir la liste des pays en développement (PED)
+pays_ped <- c(
+  "Afghanistan", "Albania", "Algeria", "Angola", "Argentina", "Armenia", "Azerbaijan", "Bangladesh",
+  "Belarus", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil",
+  "Burkina Faso", "Burundi", "Cambodia", "Cameroon", "Cape Verde", "Central Africa Republic", "Chad",
+  "Chile", "China", "Colombia", "Costa Rica", "Côte d’Ivoire", "Democratic Republic of Congo",
+  "Dominican Republic", "East Timor", "Ecuador", "Egypt", "El Salvador", "Ethiopia", "Gabon", "Georgia", "Ghana", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Honduras", "India", "Indonesia", "Iraq",
+  "Jordan", "Kazakhstan", "Kenya", "Kosovo", "Kyrgyz Republic", "Lebanon", "Lesotho", "Liberia",
+  "Macedonia, FYR", "Madagascar", "Malawi", "Mali", "Mauritania", "Mexico", "Moldova", "Mongolia",
+  "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nepal", "Nicaragua", "Niger", "Nigeria",
+  "Pakistan", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Republic of Congo",
+  "Rwanda", "Senegal", "Serbia", "Sierra Leone", "South Africa", "Sri Lanka", "Sudan", "Swaziland",
+  "Tajikistan", "Tanzania", "Thailand", "The Gambia", "Togo", "Tunisia", "Uganda", "Uruguay", "Vietnam",
+  "Zambia", "Zimbabwe"
+)
+
+# Filtrer les flux entre PED uniquement
+reseau_filtre <- reseau %>%
+  filter(in_Flow_per_r > 0)
+
+# Calcul du volume total reçu par nœud (degré entrant pondéré)
+g <- g %>%
+  activate(nodes) %>%
+  mutate(volume_recu = centrality_degree(mode = "in", weights = E(g)$in_Flow_per_r))
+
+top30 <- g %>%
+  as_tibble() %>%
+  arrange(desc(volume_recu)) %>%
+  slice(1:30) %>%
+  pull(name)
+
+reseau_top30 <- reseau_filtre %>%
+  filter(iso_r %in% top30)
+
+
+# Créer le graphe dirigé pondéré
+g_top <- tbl_graph(edges = reseau_top30, directed = TRUE) %>%
+  activate(nodes) %>%
+  mutate(volume_recu = centrality_degree(mode = "in", weights = E(.)$in_Flow_per_r))
+
+
+# Visualiser le graphe avec ggraph
+ggraph(g_top, layout = "kk") +
+  geom_edge_link(
+    aes(width = in_Flow_per_r),
+    color = "darkorange", alpha = 0.6,
+    arrow = arrow(length = unit(3, 'mm')),
+    end_cap = circle(2, 'mm')
+  ) +
+  geom_node_point(
+    aes(size = volume_recu),
+    color = "tomato", alpha = 0.85
+  ) +
+  geom_node_text(aes(label = name), size = 3, repel = TRUE) +
+  scale_edge_width_continuous(name = "Flux d’IDE", range = c(0.2, 2.5)) +
+  scale_size_continuous(name = "IDE reçus", range = c(2, 12)) +
+  theme_void() +
+  labs(
+    #title = "Graphe en réseau IDE entre les 30 PED les plus centraux (2006–2018)",
+    caption = "Taille des nœuds = volume IDE reçus\nLargeur des arêtes = flux d’IDE bruts"
+  )
+
+
+```
+
+
+
+
+
+
+
+```{r}
+library(ggplot2)
+library(scales)
+
+nuage_data <- data %>%
+  group_by(iso_r, income_r) %>% 
+  summarise(
+    tot_inflow       = sum(in_flow, na.rm = TRUE),
+    tot_fisc         = sum(Fisc_r,  na.rm = TRUE),
+    tot_inflow_per_r = sum(in_Flow_per_r, na.rm = TRUE),
+    tot_fisc_tax     = sum(Taxh_r,  na.rm = TRUE),
+    tot_fisc_spend   = sum(Spend_r,  na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(nuage_data, aes(
+    x     = tot_fisc, 
+    y     = tot_inflow_per_r,
+    color = income_r,      
+    size  = tot_inflow_per_r     
+  )) +
+  geom_point(alpha = 0.7) +
+  
+  # 1) Droite de régression globale (une seule courbe pour tous les points)
+  geom_smooth(
+    aes(group = 1),       # force un seul groupe pour la régression
+    method = "lm",
+    se     = FALSE,       # sans bande de confiance
+    color  = "black",
+    size   = 1
+  ) +
+  
+  # Si vous préférez une droite par catégorie income_r, commentez la ligne ci-dessus
+  # et décommentez celle-ci :
+  # geom_smooth(method = "lm", se = FALSE, size = 1) +
+  
+  scale_size_continuous(
+    range = c(2, 10),
+    name  = "Flux d'IDE"
+  ) +
+  scale_color_brewer(
+    palette = "Set1",
+    name    = "Niveau de revenus"
+  ) +
+  scale_y_continuous(
+    labels = number_format(scale = 1, suffix = "M$"),
+    name   = "IDE entrants (millions $)"
+  ) +
+  scale_x_continuous(
+    labels = number_format(scale = 1, suffix = ""),
+    name   = "Consolidation budgétaire"
+  ) +
+  labs(
+    title    = " Relation consolidation budgétaire et IDE"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title    = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "right"
+  )
+
+```
+
+
+
+
+
+```{r}
+
+ggplot(nuage_data, aes(
+    x     = tot_fisc, 
+    y     = tot_inflow_per_r,
+    color = income_r,      
+    size  = tot_inflow_per_r     
+  )) +
+  geom_point(alpha = 0.7) +
+  
+  # 1) Droite de régression globale (une seule courbe pour tous les points)
+  geom_smooth(
+    aes(group = 1),       # force un seul groupe pour la régression
+    method = "lm",
+    se     = FALSE,       # sans bande de confiance
+    color  = "black",
+    size   = 1
+  ) +
+  
+  # Si vous préférez une droite par catégorie income_r, commentez la ligne ci-dessus
+  # et décommentez celle-ci :
+  # geom_smooth(method = "lm", se = FALSE, size = 1) +
+  
+  scale_size_continuous(
+    range = c(2, 10),
+    name  = "Flux d'IDE(%PIB)"
+  ) +
+  scale_color_brewer(
+    palette = "Set1",
+    name    = "Niveau de revenus"
+  ) +
+  scale_y_continuous(
+    labels = number_format(scale = 1, suffix = "M$"),
+    name   = "IDE entrants (%PIB)"
+  ) +
+  scale_x_continuous(
+    labels = number_format(scale = 1, suffix = ""),
+    name   = "Consolidation budgétaire"
+  ) +
+  labs(
+    title    = " Relation consolidation budgétaire et IDE"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title    = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "right"
+  )
+
+
+```
+
+
+
+TAXE ET IDE
+
+```{r}
+#nuage_data <- data %>%
+#  group_by(iso_r, income_r) %>% 
+#  summarize(
+#    tot_inflow       = sum(in_flow, na.rm = TRUE),
+ #   tot_fisc         = sum(Fisc_r,  na.rm = TRUE),
+ #   tot_log_INFLOW   = sum(log_INFLOW, na.rm = TRUE),
+ #   tot_inflow_per_r = sum(in_Flow_per_r, na.rm = TRUE),
+ #   tot_fisc_tax     = sum(Taxh_r,  na.rm = TRUE),
+  #  tot_fisc_spend   = sum(Spend_r,  na.rm = TRUE),
+   # .groups = "drop"
+  #)
+
+ggplot(nuage_data, aes(
+    x     = tot_fisc_tax, 
+    y     = tot_inflow,
+    color = income_r,      
+    size  = tot_inflow     
+  )) +
+  geom_point(alpha = 0.7) +
+  
+  # 1) Droite de régression globale (une seule courbe pour tous les points)
+  geom_smooth(
+    aes(group = 1),       # force un seul groupe pour la régression
+    method = "lm",
+    se     = FALSE,       # sans bande de confiance
+    color  = "black",
+    size   = 1
+  ) +
+  
+  # Si vous préférez une droite par catégorie income_r, commentez la ligne ci-dessus
+  # et décommentez celle-ci :
+  # geom_smooth(method = "lm", se = FALSE, size = 1) +
+  
+  scale_size_continuous(
+    range = c(2, 10),
+    name  = "Flux d'IDE"
+  ) +
+  scale_color_brewer(
+    palette = "Set1",
+    name    = "Niveau de revenus"
+  ) +
+  scale_y_continuous(
+    labels = number_format(scale = 1, suffix = "M$"),
+    name   = "IDE entrants (millions $)"
+  ) +
+  scale_x_continuous(
+    labels = number_format(scale = 1, suffix = ""),
+    name   = "Consolidation budgétaire (Taxe)"
+  ) +
+  labs(
+    title    = " Relation Taxe et IDE"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title    = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "right"
+  )
+
+
+```
+
+
+```{r}
+ggplot(nuage_data, aes(
+    x     = tot_fisc_tax, 
+    y     = tot_inflow_per_r,
+    color = income_r,      
+    size  = tot_inflow     
+  )) +
+  geom_point(alpha = 0.7) +
+  
+  # 1) Droite de régression globale (une seule courbe pour tous les points)
+  geom_smooth(
+    aes(group = 1),       # force un seul groupe pour la régression
+    method = "lm",
+    se     = FALSE,       # sans bande de confiance
+    color  = "black",
+    size   = 1
+  ) +
+  
+  # Si vous préférez une droite par catégorie income_r, commentez la ligne ci-dessus
+  # et décommentez celle-ci :
+  # geom_smooth(method = "lm", se = FALSE, size = 1) +
+  
+  scale_size_continuous(
+    range = c(2, 10),
+    name  = "Flux d'IDE"
+  ) +
+  scale_color_brewer(
+    palette = "Set1",
+    name    = "Niveau de revenus"
+  ) +
+  scale_y_continuous(
+    labels = number_format(scale = 1, suffix = "M$"),
+    name   = "IDE entrants (%PIB)"
+  ) +
+  scale_x_continuous(
+    labels = number_format(scale = 1, suffix = ""),
+    name   = "Consolidation budgétaire (Taxe)"
+  ) +
+  labs(
+    title    = " Relation Taxe et IDE"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title    = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "right"
+  )
+```
+
+
+
+DÉPENSES ET IDE
+
+```{r}
+ggplot(nuage_data, aes(
+    x     = tot_fisc_spend, 
+    y     = tot_inflow,
+    color = income_r,      
+    size  = tot_inflow     
+  )) +
+  geom_point(alpha = 0.7) +
+  
+  # 1) Droite de régression globale (une seule courbe pour tous les points)
+  geom_smooth(
+    aes(group = 1),       # force un seul groupe pour la régression
+    method = "lm",
+    se     = FALSE,       # sans bande de confiance
+    color  = "black",
+    size   = 1
+  ) +
+  
+  # Si vous préférez une droite par catégorie income_r, commentez la ligne ci-dessus
+  # et décommentez celle-ci :
+  # geom_smooth(method = "lm", se = FALSE, size = 1) +
+  
+  scale_size_continuous(
+    range = c(2, 10),
+    name  = "Flux d'IDE"
+  ) +
+  scale_color_brewer(
+    palette = "Set1",
+    name    = "Niveau de revenus"
+  ) +
+  scale_y_continuous(
+    labels = number_format(scale = 1, suffix = "M$"),
+    name   = "IDE entrants (millions $)"
+  ) +
+  scale_x_continuous(
+    labels = number_format(scale = 1, suffix = ""),
+    name   = "Consolidation budgétaire (Dépenses)"
+  ) +
+  labs(
+    title    = " Relation Dépenses et IDE"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title    = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "right"
+  )
+
+
+```
+
+
+```{r}
+ggplot(nuage_data, aes(
+    x     = tot_fisc_spend, 
+    y     = tot_inflow_per_r,
+    color = income_r,      
+    size  = tot_inflow     
+  )) +
+  geom_point(alpha = 0.7) +
+  
+  # 1) Droite de régression globale (une seule courbe pour tous les points)
+  geom_smooth(
+    aes(group = 1),       # force un seul groupe pour la régression
+    method = "lm",
+    se     = FALSE,       # sans bande de confiance
+    color  = "black",
+    size   = 1
+  ) +
+  
+  # Si vous préférez une droite par catégorie income_r, commentez la ligne ci-dessus
+  # et décommentez celle-ci :
+  # geom_smooth(method = "lm", se = FALSE, size = 1) +
+  
+  scale_size_continuous(
+    range = c(2, 10),
+    name  = "Flux d'IDE"
+  ) +
+  scale_color_brewer(
+    palette = "Set1",
+    name    = "Niveau de revenus"
+  ) +
+  scale_y_continuous(
+    labels = number_format(scale = 1, suffix = "M$"),
+    name   = "IDE entrants (%PIB)"
+  ) +
+  scale_x_continuous(
+    labels = number_format(scale = 1, suffix = ""),
+    name   = "Consolidation budgétaire (Dépenses)"
+  ) +
+  labs(
+    title    = " Relation Dépenses et IDE"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title    = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "right"
+  )
+
+```
+
+HISTOGRAMME
+
+```{r}
+ggplot(data, aes(x = in_Flow_per_r)) +
+  geom_histogram(
+     aes(y = after_stat(density)),
+    bins  = 30,
+    fill  = "lightgreen",
+    color = "darkgreen"
+  ) +
+  labs(
+    title = "Histogramme de flux IDE",
+    x     = "IDE (%PIB)",
+    y     = "Fréquence"
+  ) +
+  # méthode 1 : on “coupe” l'axe
+  scale_x_continuous(
+    limits = c(1, 10),       # NA signifie “jusqu'au max des données”
+    expand = c(0, 0)         # pas d’espace blanc supplémentaire
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title   = element_text(face = "bold", hjust = 0.5),
+    axis.title   = element_text(size = 14),
+    axis.text    = element_text(size = 12)
+  )
+
+```
+
+
+```{r}
+ggplot(data, aes(x = in_flow)) +
+  geom_histogram(
+    aes(y = after_stat(density)),
+    bins  = 30,
+    fill  = "lightgreen",
+    color = "darkgreen"
+  ) +
+  labs(
+    title = "Histogramme de in_flow",
+    x     = "in_flow (millions $)",
+    y     = "Fréquence"
+  ) +
+  # méthode 1 : on “coupe” l'axe
+  scale_x_continuous(
+    limits = c(1, 10),       # NA signifie “jusqu'au max des données”
+    expand = c(0, 0)         # pas d’espace blanc supplémentaire
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title   = element_text(face = "bold", hjust = 0.5),
+    axis.title   = element_text(size = 14),
+    axis.text    = element_text(size = 12)
+  )
+```
+
+
+
+
+```{r}
+ggplot(data, aes(x = Fisc_r)) +
+  geom_histogram(
+     aes(y = after_stat(density)),
+    bins  = 30,
+    fill  = "lightblue",
+    color = "lightblue"
+  ) +
+  labs(
+    title = "Histogramme de consolidation budgétaire",
+    x     = "consolidation budgétaire",
+    y     = "Fréquence"
+  ) +
+  
+  scale_x_continuous(
+    limits = c(-14, 18),       # NA signifie “jusqu'au max des données”
+    expand = c(0, 0)         # pas d’espace blanc supplémentaire
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title   = element_text(face = "bold", hjust = 0.5),
+    axis.title   = element_text(size = 14),
+    axis.text    = element_text(size = 12)
+  )
+```
+
+
+
+
+```{r}
+# Installer si nécessaire
+install.packages(c("corrplot", "Hmisc", "tidyverse"))
+
+# Charger les packages
+library(Hmisc)
+library(corrplot)
+library(tidyverse)
+
+```
+
+
+
+```{r}
+
+# Liste des variables à inclure dans la matrice de corrélation
+vars <- c("in_flow", "in_Flow_per_r", "Larg_fisc_r",   "Fisc_r", "Taxh_r",
+  "gross_debt_r",  "log_GDP_r",    "log_POP_r",
+  "InstDist","res_rents_r", "remit_gdp_r", "inflation_r",
+  "access_elec_r", "gdp_growth_r", "fin_dev_r",  "real_ex_rate_r", "nominal_ex_rate_r",
+  "RTA", "log_distcap", "CIT_r", "BIT", "MR")
+
+# Noms explicites pour affichage
+var_labels <- c(
+  in_flow = "Flux d'IDE (USD)",
+  in_Flow_per_r = "Flux d'IDE par (%PIB)",
+  Larg_fisc_r = "Conso budgétaire>1,5%",
+  Fisc_r = "Conso budgétaire",
+  Taxh_r = "Conso par recettes",
+  gross_debt_r = "Dette publique brute (% PIB)",
+  log_GDP_r = "Log PIB",
+  log_POP_r = "Log population",
+  InstDist = "Dist institutionnelle",
+  res_rents_r = "Rentes de ressources (% PIB)",
+  remit_gdp_r = "Envois de fonds (% PIB)",
+  inflation_r = "Inflation (%)",
+  access_elec_r = "Accès à l’électricité (total)",
+  access_elec_rural_r = "Accès à l’électricité",
+  gdp_growth_r = "Croissance du PIB (%)",
+  fin_dev_r = "Développement financier",
+  real_ex_rate_r = "Taux de change réel",
+  nominal_ex_rate_r = "Taux de change nominal",
+  RTA = "Accord commercial régional",
+  log_distcap = "Log distance capitale",
+  CIT_r = "Taux d’impôt sur les sociétés",
+  BIT = "Traité bilatéral d’investissement (BIT)",
+  MR = "resistence m."
+)
+
+
+# Extraire les données uniquement pour les variables d'intérêt
+data_corr <- data %>% select(all_of(vars))
+
+# Calcul des corrélations (Pearson), avec p-values
+corr_results <- rcorr(as.matrix(data_corr), type = "pearson")
+
+# Matrice des corrélations
+cor_matrix <- corr_results$r
+
+# Matrice des p-values
+p_matrix <- corr_results$P
+
+rownames(cor_matrix) <- var_labels[rownames(cor_matrix)]
+colnames(cor_matrix) <- var_labels[colnames(cor_matrix)]
+
+rownames(p_matrix) <- var_labels[rownames(p_matrix)]
+colnames(p_matrix) <- var_labels[colnames(p_matrix)]
+
+```
+
+
+
+```{r fig.width=12, fig.height=12}
+# Mettre 1 sur la diagonale (au cas où ce n'est pas déjà le cas)
+diag(cor_matrix) <- 1
+diag(p_matrix)   <- 0
+
+# Affichage triangulaire supérieur avec les valeurs
+corrplot(cor_matrix,
+         method = "number",       # Affiche les valeurs numériques
+         type = "upper",          # Seulement le triangle supérieur
+         diag = TRUE,             # Affiche la diagonale
+         tl.cex = 0.6,            # Taille des noms de variables
+         addCoefasPercent = TRUE, # Afficher les coefficients en pourcentage
+         number.cex = 0.6,        # Taille des chiffres
+         col = "black",           # Couleur des chiffres
+         cl.pos = "n")            # Supprime la légende couleur
+
+```
+
+
+```{r fig.width=12, fig.height=12}
+#  representation plus lisible
+corrplot(cor_matrix, method = "color", type = "upper", order = "hclust",
+         tl.col = "black", tl.srt = 90, 
+         addCoef.col = "black", # Couleur des coefficients
+         cl.pos = "n", # Position de la légende de couleur
+         tl.cex = 0.6,            # Taille des noms de variables
+         cl.cex = 0.6, # Taille de la légende de couleur
+         addCoefasPercent = TRUE, # Afficher les coefficients en pourcentage
+         number.cex = 0.8) # Taille des chiffres des coefficients
+
+```
+
+
+
+
+```{r}
+# Fonction pour ajouter étoiles selon p-value
+cor_stars <- function(cor, p) {
+  stars <- ifelse(p < 0.001, "***",
+            ifelse(p < 0.01, "**",
+            ifelse(p < 0.05, "*", "")))
+  out <- sprintf("%.2f%s", cor, stars)
+  return(out)
+}
+
+```
+
+
+
+```{r}
+# Création du tableau avec étoiles
+cor_labels <- matrix(cor_stars(cor_matrix, p_matrix), nrow = nrow(cor_matrix))
+rownames(cor_labels) <- colnames(cor_labels) <- colnames(cor_matrix)
+
+# Garder que la partie triangulaire supérieure
+get_upper_tri <- function(mat) {
+  mat[lower.tri(mat)] <- NA
+  return(mat)
+}
+
+upper_corr <- get_upper_tri(cor_matrix)
+upper_labels <- get_upper_tri(cor_labels)
+
+# Dataframe pour ggplot
+library(reshape2)
+
+melted_cor <- melt(upper_corr, na.rm = TRUE)
+melted_label <- melt(upper_labels, na.rm = TRUE)
+melted_cor$label <- melted_label$value
+
+```
+
+
+
+```{r fig.width=12, fig.height=12}
+ggplot(melted_cor, aes(Var2, Var1, fill = value)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = label), size = 3) +
+  scale_fill_gradient2(low = "darkred", high = "lightblue", mid = "white",
+                       midpoint = 0, limit = c(-1,1), space = "Lab", name = "Corr") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        axis.title = element_blank()) +
+  coord_fixed()
+
+```
+
+
+
+
